@@ -1,0 +1,67 @@
+pipeline {
+    agent any
+
+    parameters {
+        choice(name: 'ENVIRONMENT', choices: ['dev', 'qa', 'prod'], description: 'Select the deployment environment')
+    }
+
+    environment {
+        // Common environment variables
+        AWS_REGION = 'us-west-2'
+    }
+
+    stages {
+        stage('Build') {
+            steps {
+                script {
+                    // Build the Java application (assuming Maven is used)
+                    sh 'mvn clean package'
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    // Build the Docker image
+                    def imageTag = "myapp:${params.ENVIRONMENT}-latest"
+                    sh "docker build -t ${imageTag} ."
+                }
+            }
+        }
+
+        stage('Push to ECR') {
+            steps {
+                script {
+                    // Authenticate to AWS ECR
+                    sh 'aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin <aws_account_id>.dkr.ecr.${AWS_REGION}.amazonaws.com'
+
+                    // Set the ECR repository based on the selected environment
+                    def ecrRepo = ''
+                    if (params.ENVIRONMENT == 'dev') {
+                        ecrRepo = 'dev-ecr'
+                    } else if (params.ENVIRONMENT == 'qa') {
+                        ecrRepo = 'qa-ecr'
+                    } else if (params.ENVIRONMENT == 'prod') {
+                        ecrRepo = 'prod-ecr'
+                    }
+
+                    // Tag the image
+                    sh "docker tag myapp:${params.ENVIRONMENT}-latest <aws_account_id>.dkr.ecr.${AWS_REGION}.amazonaws.com/${ecrRepo}:latest"
+
+                    // Push the image to the corresponding ECR repository
+                    sh "docker push <aws_account_id>.dkr.ecr.${AWS_REGION}.amazonaws.com/${ecrRepo}:latest"
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Deployment to ${params.ENVIRONMENT} environment was successful."
+        }
+        failure {
+            echo "Deployment to ${params.ENVIRONMENT} environment failed."
+        }
+    }
+}
