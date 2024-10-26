@@ -1,0 +1,38 @@
+pipeline {
+    agent any
+    stages {
+        stage('Long Running Job') {
+            steps {
+                // Set a timeout of 30 minutes
+                timeout(time: 30, unit: 'MINUTES') {
+                    script {
+                        // Your long-running job commands here
+                        sh 'run-your-long-job-command'
+                    }
+                }
+            }
+        }
+    }
+}
+----------------------------
+pipeline {
+    agent any
+    stages {
+        stage('Long Running Job') {
+            steps {
+                timeout(time: 30, unit: 'MINUTES') {
+                    script {
+                        try {
+                            sh 'run-your-long-job-command'
+                        } catch (Exception e) {
+                            // Handle the exception
+                            echo "Job failed due to timeout or error."
+                            currentBuild.result = 'FAILURE'
+                            // Notify or perform other actions here
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
