@@ -1,0 +1,46 @@
+pipeline {
+    agent any 
+
+    environment {
+        // Define the Webhook URL for your Microsoft Teams channel
+        TEAMS_WEBHOOK_URL = 'https://outlook.office.com/webhook/your-webhook-url' 
+    }
+
+    stages {
+        stage('Build') {
+            steps {
+                echo 'Building the project...'
+                // Add your build steps here
+                sh 'echo "Build step goes here"'
+            }
+        }
+        stage('Test') {
+            steps {
+                echo 'Running tests...'
+                // Add your test steps here
+                sh 'echo "Test step goes here"'
+            }
+        }
+    }
+
+    post {
+        success {
+            script {
+                // Send notification on success
+                teamsNotify(
+                    webhookUrl: TEAMS_WEBHOOK_URL,
+                    message: "Build succeeded: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' was successful!"
+                )
+            }
+        }
+        failure {
+            script {
+                // Send notification on failure
+                teamsNotify(
+                    webhookUrl: TEAMS_WEBHOOK_URL,
+                    message: "Build failed: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' has failed!"
+                )
+            }
+        }
+    }
+}
