@@ -1,0 +1,75 @@
+pipeline {
+    agent any
+
+    environment {
+        SONAR_HOST_URL = 'http://your-sonarqube-server'  // Replace with your SonarQube URL
+        SONAR_AUTH_TOKEN = credentials('your-sonar-token') // Replace with your Jenkins credentials ID for SonarQube token
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                // Checkout code from your SCM (e.g., Git)
+                git url: 'https://your-git-repo-url.git', branch: 'develop' // Replace with your repository URL
+            }
+        }
+
+        stage('Build') {
+            steps {
+                // Build the Java application using Maven
+                sh 'mvn clean package'
+            }
+        }
+
+        stage('Test') {
+            steps {
+                // Run tests using Maven
+                sh 'mvn test'
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                script {
+                    withSonarQubeEnv('SonarQube') { // Replace with the name of your SonarQube server
+                        // Run SonarQube scanner
+                        sh 'mvn sonar:sonar \
+                            -Dsonar.projectKey=your_project_key \
+                            -Dsonar.host.url=$SONAR_HOST_URL \
+                            -Dsonar.login=$SONAR_AUTH_TOKEN'
+                    }
+                }
+            }
+        }
+
+        stage('Quality Gate') {
+            steps {
+                // Wait for SonarQube quality gate status
+                timeout(time: 1, unit: 'MINUTES') {
+                    script {
+                        def qualityGate = waitForQualityGate()
+                        if (qualityGate.status != 'OK') {
+                            error "Pipeline failed due to not meeting SonarQube quality gate!"
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            // Archive artifacts or logs
+            archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
+            junit '**/target/surefire-reports/*.xml' // Archive test results
+        }
+        failure {
+            // Notify on failure (optional)
+            echo 'Build failed! Please check the logs.'
+        }
+        success {
+            // Notify on success (optional)
+            echo 'Build succeeded! Quality gate passed.'
+        }
+    }
+}
