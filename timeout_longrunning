@@ -36,3 +36,41 @@ pipeline {
         }
     }
 }
+----------------------------------------------
+
+
+
+pipeline {
+    agent any
+    stages {
+        stage('Handle Exceptions') {
+            steps {
+                script {
+                    timeout(time: 30, unit: 'SECONDS') {
+                        try {
+                            // Simulating a long-running job that might throw an exception
+                            int result = divideNumbers(10, 0) // This will throw an ArithmeticException
+                            echo "Result: ${result}"
+                        } catch (ArithmeticException e) {
+                            echo "Caught an ArithmeticException: ${e.message}"
+                        } catch (NullPointerException e) {
+                            echo "Caught a NullPointerException: ${e.message}"
+                        } catch (hudson.AbortException e) {
+                            // Handle the timeout exception specifically
+                            echo "Caught a TimeoutException: Job took too long to complete."
+                        } catch (Exception e) {
+                            echo "Caught a general Exception: ${e.message}"
+                        } finally {
+                            echo "Execution completed. Cleaning up resources."
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// A method to demonstrate throwing exceptions
+def divideNumbers(int a, int b) {
+    return a / b // This will throw ArithmeticException if b is 0
+}
