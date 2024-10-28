@@ -1,0 +1,88 @@
+pipeline {
+    agent any
+    environment {
+        AWS_REGION = 'your-aws-region'                // AWS region, e.g., 'us-west-2'
+        ECR_REPO_URL = ''                             // This will be set dynamically per environment
+        IMAGE_TAG = ''                                // Image tag to be set based on the branch and tag
+    }
+    stages {
+        stage('Determine Environment and ECR Repo') {
+            steps {
+                script {
+                    // Get the branch name and tag name from the environment variables
+                    def branchName = env.BRANCH_NAME
+                    def tagName = env.GIT_TAG_NAME ?: ''
+
+                    if (branchName == 'develop') {
+                        // Develop branch goes to develop ECR repo
+                        ECR_REPO_URL = "your-account-id.dkr.ecr.${AWS_REGION}.amazonaws.com/develop-repo"
+                        IMAGE_TAG = "develop-${env.BUILD_NUMBER}"
+
+                    } else if (branchName.startsWith('release')) {
+                        // For release branches, determine the ECR based on tag
+                        if (tagName.startsWith('qa')) {
+                            ECR_REPO_URL = "your-account-id.dkr.ecr.${AWS_REGION}.amazonaws.com/qa-repo"
+                            IMAGE_TAG = "qa-${env.BUILD_NUMBER}"
+                        } else if (tagName.startsWith('uat')) {
+                            ECR_REPO_URL = "your-account-id.dkr.ecr.${AWS_REGION}.amazonaws.com/uat-repo"
+                            IMAGE_TAG = "uat-${env.BUILD_NUMBER}"
+                        } else if (tagName.startsWith('prod')) {
+                            ECR_REPO_URL = "your-account-id.dkr.ecr.${AWS_REGION}.amazonaws.com/prod-repo"
+                            IMAGE_TAG = "prod-${env.BUILD_NUMBER}"
+                        } else {
+                            error("Tag for release* branch does not match 'qa-*', 'uat-*', or 'prod-*'")
+                        }
+                    } else {
+                        error("Unsupported branch: Only 'develop' and 'release*' branches are supported")
+                    }
+
+                    echo "ECR Repository: ${ECR_REPO_URL}"
+                    echo "Docker Image Tag: ${IMAGE_TAG}"
+                }
+            }
+        }
+
+        stage('Checkout') {
+            steps {
+                echo "Checking out branch: ${env.BRANCH_NAME}"
+                git branch: env.BRANCH_NAME, url: 'https://github.com/your-repo/project.git'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    echo "Building Docker image with tag: ${IMAGE_TAG}"
+                    sh "docker build -t ${ECR_REPO_URL}:${IMAGE_TAG} ."
+                }
+            }
+        }
+
+        stage('Login to ECR') {
+            steps {
+                script {
+                    echo "Logging in to ECR"
+                    sh "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REPO_URL}"
+                }
+            }
+        }
+
+        stage('Push Docker Image to ECR') {
+            steps {
+                script {
+                    echo "Pushing Docker image ${ECR_REPO_URL}:${IMAGE_TAG} to ECR"
+                    sh "docker push ${ECR_REPO_URL}:${IMAGE_TAG}"
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            script {
+                echo "Cleaning up Docker images locally"
+                sh "docker rmi ${ECR_REPO_URL}:${IMAGE_TAG} || true"
+            }
+        }
+    }
+}
