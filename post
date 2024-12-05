@@ -1,0 +1,32 @@
+pipeline {
+    agent any
+    stages {
+        stage('Build') {
+            steps {
+                echo 'Building...'
+                // Simulate success/failure
+                sh 'exit 0' // Change to 'exit 1' to simulate failure
+            }
+        }
+    }
+    post {
+        always {
+            echo 'This runs no matter what.'
+        }
+        success {
+            echo 'Build succeeded!'
+        }
+        failure {
+            echo 'Build failed.'
+        }
+        unstable {
+            echo 'Build is unstable.'
+        }
+        aborted {
+            echo 'Build was aborted.'
+        }
+        changed {
+            echo 'Build result changed from the previous run.'
+        }
+    }
+}
